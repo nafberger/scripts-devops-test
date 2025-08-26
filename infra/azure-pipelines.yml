@@ -4,8 +4,8 @@
 
 trigger: none
 
-pool:
-  vmImage: 'windows-latest'
+# pool:
+#   vmImage: 'windows-latest'
 
 variables:
   solution: '**/*.sln'
@@ -19,8 +19,10 @@ stages:
   jobs:
   - job: Build
     displayName: 'Build ASP.NET Web Forms'
+    pool:
+      vmImage: 'windows-latest'
+
     steps:
-    
     # Checkout source code from GitHub
     - checkout: self
       displayName: 'Checkout GitHub Repository'
@@ -98,7 +100,6 @@ stages:
               SourceFolder: '$(Pipeline.Workspace)/WebApp'
               Contents: '**'
               TargetFolder: '$(deploymentPath)'
-              CleanTargetFolder: true
               OverWrite: true
           
           # Configure IIS Application Pool and Site
