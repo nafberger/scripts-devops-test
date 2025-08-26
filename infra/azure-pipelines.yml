@@ -68,6 +68,8 @@ stages:
   - deployment: DeployToVM
     displayName: 'Deploy to IIS on Azure VM'
     environment: 'Production'  # Configure this environment in Azure DevOps
+      resourceName: testvm   # ← exact name shown in the Production env
+      resourceType: VirtualMachine
     strategy:
       runOnce:
         deploy:
