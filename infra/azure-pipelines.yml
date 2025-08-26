@@ -4,9 +4,6 @@
 
 trigger: none
 
-# pool:
-#   vmImage: 'windows-latest'
-
 variables:
   solution: '**/*.sln'
   buildPlatform: 'Any CPU'
@@ -20,14 +17,11 @@ stages:
   - job: Build
     displayName: 'Build ASP.NET Web Forms'
     pool:
-      vmImage: 'windows-latest'
-
+      vmImage: 'windows-latest'   # build on Microsoft-hosted agent
     steps:
-    # Checkout source code from GitHub
     - checkout: self
       displayName: 'Checkout GitHub Repository'
-    
-    # Use .NET Framework MSBuild
+
     - task: MSBuild@1
       displayName: 'Build Solution'
       inputs:
@@ -35,8 +29,7 @@ stages:
         platform: '$(buildPlatform)'
         configuration: '$(buildConfiguration)'
         msbuildArguments: '/p:WebPublishMethod=FileSystem /p:DeployOnBuild=true /p:PublishProfile=FolderProfile /p:PublishUrl=$(Agent.TempDirectory)\publish'
-    
-    # Copy Web application files for deployment
+
     - task: CopyFiles@2
       displayName: 'Copy Web Files'
       inputs:
@@ -51,8 +44,7 @@ stages:
           **/*.htm
           bin/**
         TargetFolder: '$(Build.ArtifactStagingDirectory)/WebApp'
-    
-    # Publish build artifacts
+
     - task: PublishBuildArtifacts@1
       displayName: 'Publish Build Artifacts'
       inputs:
@@ -74,17 +66,16 @@ stages:
       runOnce:
         deploy:
           steps:
-          
-          # Download build artifacts
           - download: current
             artifact: WebApp
             displayName: 'Download Build Artifacts'
-          
-          # Stop IIS application pool
+
+          # Stop IIS application pool (use Windows PowerShell)
           - task: PowerShell@2
             displayName: 'Stop Application Pool'
             inputs:
               targetType: 'inline'
+              pwsh: false
               script: |
                 Import-Module WebAdministration
                 if (Get-IISAppPool -Name "SimpleWebFormsTest" -ErrorAction SilentlyContinue) {
@@ -93,9 +84,8 @@ stages:
                 } else {
                   Write-Host "Application pool does not exist, will be created during deployment"
                 }
-              failOnStderr: false
-          
-          # Deploy files to IIS directory
+
+          # Copy files to IIS directory
           - task: CopyFiles@2
             displayName: 'Deploy to IIS Directory'
             inputs:
@@ -103,26 +93,24 @@ stages:
               Contents: '**'
               TargetFolder: '$(deploymentPath)'
               OverWrite: true
-          
-          # Configure IIS Application Pool and Site
+
+          # Configure IIS App Pool and Site (use Windows PowerShell)
           - task: PowerShell@2
             displayName: 'Configure IIS Application Pool and Site'
             inputs:
               targetType: 'inline'
+              pwsh: false
               script: |
                 Import-Module WebAdministration
-                
-                # Create Application Pool if it doesn't exist
+
                 if (-not (Get-IISAppPool -Name "SimpleWebFormsTest" -ErrorAction SilentlyContinue)) {
                   New-WebAppPool -Name "SimpleWebFormsTest"
                   Write-Host "Created application pool: SimpleWebFormsTest"
                 }
-                
-                # Set .NET Framework version
+
                 Set-ItemProperty -Path "IIS:\AppPools\SimpleWebFormsTest" -Name "managedRuntimeVersion" -Value "v4.0"
                 Set-ItemProperty -Path "IIS:\AppPools\SimpleWebFormsTest" -Name "enable32BitAppOnWin64" -Value $false
-                
-                # Create IIS Site if it doesn't exist
+
                 if (-not (Get-Website -Name "SimpleWebFormsTest" -ErrorAction SilentlyContinue)) {
                   New-Website -Name "SimpleWebFormsTest" -Port 8080 -PhysicalPath "$(deploymentPath)" -ApplicationPool "SimpleWebFormsTest"
                   Write-Host "Created website: SimpleWebFormsTest on port 8080"
@@ -130,29 +118,30 @@ stages:
                   Set-ItemProperty -Path "IIS:\Sites\SimpleWebFormsTest" -Name "physicalPath" -Value "$(deploymentPath)"
                   Write-Host "Updated website path"
                 }
-                
-                # Set permissions on deployment directory
+
                 $acl = Get-Acl "$(deploymentPath)"
-                $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("IIS_IUSRS","FullControl","ContainerInherit,ObjectInherit","None","Allow")
-                $acl.SetAccessRule($accessRule)
+                $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("IIS_IUSRS","FullControl","ContainerInherit,ObjectInherit","None","Allow")
+                $acl.SetAccessRule($rule)
                 Set-Acl "$(deploymentPath)" $acl
                 Write-Host "Set IIS_IUSRS permissions"
-          
-          # Start Application Pool
+
+          # Start IIS application pool (use Windows PowerShell)
           - task: PowerShell@2
             displayName: 'Start Application Pool'
             inputs:
               targetType: 'inline'
+              pwsh: false
               script: |
                 Import-Module WebAdministration
                 Start-WebAppPool -Name "SimpleWebFormsTest"
                 Write-Host "Application pool started"
-          
-          # Health check
+
+          # Health check (use Windows PowerShell)
           - task: PowerShell@2
             displayName: 'Health Check'
             inputs:
               targetType: 'inline'
+              pwsh: false
               script: |
                 Start-Sleep -Seconds 10
                 try {
