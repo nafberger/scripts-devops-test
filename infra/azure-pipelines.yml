@@ -59,8 +59,10 @@ stages:
   jobs:
   - deployment: DeployToVM
     displayName: 'Deploy to IIS on Azure VM'
-    environment: 'Production'  # Configure this environment in Azure DevOps
-      resourceName: testvm   # ← exact name shown in the Production env
+    pool: {}                         # prevent default 'Azure Pipelines' pool
+    environment:
+      name: Production               # the Environment name
+      resourceName: testvm           # EXACT VM resource name in that Environment
       resourceType: VirtualMachine
     strategy:
       runOnce:
