@@ -22,35 +22,21 @@ stages:
     - checkout: self
       displayName: 'Checkout GitHub Repository'
 
-    # Publish the Web Forms project output to the artifact folder
-    - task: MSBuild@1
-      displayName: 'Build & Publish Web Project'
+    # Copy Website files to artifact folder (Website projects don't use MSBuild publish)
+    - task: CopyFiles@2
+      displayName: 'Copy Web Files'
       inputs:
-        solution: '$(solution)'                    # better: point directly to your web .csproj
-        platform: '$(buildPlatform)'
-        configuration: '$(buildConfiguration)'
-        msbuildArguments: >
-          /p:DeployOnBuild=true
-          /p:WebPublishMethod=FileSystem
-          /p:DeleteExistingFiles=true
-          /p:PrecompileBeforePublish=true
-          /p:PackageAsSingleFile=false
-          /p:PublishUrl=$(Build.ArtifactStagingDirectory)\WebApp
-
-    # - task: CopyFiles@2
-    #   displayName: 'Copy Web Files'
-    #   inputs:
-    #     SourceFolder: 'Web'
-    #     Contents: |
-    #       **/*.aspx
-    #       **/*.aspx.cs
-    #       **/*.config
-    #       **/*.css
-    #       **/*.js
-    #       **/*.html
-    #       **/*.htm
-    #       bin/**
-    #     TargetFolder: '$(Build.ArtifactStagingDirectory)/WebApp'
+        SourceFolder: 'Web'
+        Contents: |
+          **/*.aspx
+          **/*.aspx.cs
+          **/*.config
+          **/*.css
+          **/*.js
+          **/*.html
+          **/*.htm
+          bin/**
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/WebApp'
 
     - task: PublishBuildArtifacts@1
       displayName: 'Publish Build Artifacts'
