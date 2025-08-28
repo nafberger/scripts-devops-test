@@ -1,0 +1,81 @@
+name: WSP – Build & Deploy to IIS (on-box)
+
+on:
+  workflow_dispatch: {}             # manual only
+
+permissions:
+  contents: read
+
+env:
+  # ====== EDIT ME ======
+  SITE_SRC: Web                     # your website folder in the repo
+  IIS_SITE_NAME: SimpleWebFormsTest # IIS site name on the VM
+  IIS_APP_POOL: SimpleWebFormsTest  # IIS app pool name on the VM
+  HEALTH_URL: http://localhost:8080 # health endpoint on the VM
+  ARTIFACT_NAME: WebApp             # artifact name
+  # =====================
+
+jobs:
+  package:
+    name: Package website (no build)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Upload the raw Web/ folder as an artifact (no MSBuild/publish)
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.SITE_SRC }}
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to IIS (self-hosted VM)
+    runs-on: self-hosted                   # your IIS VM’s GitHub runner
+    needs: package
+    environment: production                # protect with required reviewers in repo Settings → Environments
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: site                       # downloads into ./site (a folder)
+
+      # Stop the IIS App Pool (Marketplace action)
+      - name: Stop App Pool
+        uses: 1k-off/iis-apppool-action@v1
+        with:
+          name: ${{ env.IIS_APP_POOL }}
+          action: stop
+
+      # Deploy folder to IIS using MSDeploy (Marketplace action)
+      # Prereqs on the VM: Web Deploy installed; Web Management Service running & listening on 8172.
+      - name: Deploy to IIS via MSDeploy (localhost)
+        uses: ChristopheLav/iis-deploy@v1
+        with:
+          website-name: ${{ env.IIS_SITE_NAME }}
+          msdeploy-service-url: https://localhost:8172/msdeploy.axd
+          msdeploy-username:   ${{ secrets.MSDEPLOY_USER }}       # e.g. 'server\deployuser' or 'deployuser'
+          msdeploy-password:   ${{ secrets.MSDEPLOY_PASSWORD }}
+          source-path:         ${{ github.workspace }}\site        # folder downloaded above
+          skip-extra-files:    false                               # mirror (delete removed files)
+
+      # Start the IIS App Pool (Marketplace action)
+      - name: Start App Pool
+        uses: 1k-off/iis-apppool-action@v1
+        with:
+          name: ${{ env.IIS_APP_POOL }}
+          action: start
+
+      # Health check (Marketplace action)
+      - name: Health check
+        uses: jtalk/url-health-check-action@v4
+        with:
+          url: ${{ env.HEALTH_URL }}
+          max-attempts: 10
+          retry-delay: 3s
+          follow-redirect: true
