@@ -2,8 +2,6 @@ name: Deploy ASP.NET MVC to Azure VM
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
   
 env:
   WEBAPP_NAME: SimpleWebFormsTest
