@@ -67,6 +67,23 @@ httpd.parse.errors
 *.swo
 *~
 
+# ASP.NET/NuGet specific
+packages/
+*.nupkg
+*.snupkg
+.nuget/
+publish_output/
+
+# CSS/JS libraries (Bootstrap, jQuery, etc.)
+TestWeb/Content/bootstrap*
+TestWeb/Scripts/bootstrap*
+TestWeb/Scripts/jquery*
+TestWeb/Scripts/modernizr*
+TestWeb/fonts/
+
+# Publish profiles
+TestWeb/Properties/PublishProfiles/
+
 # OS generated files
 .DS_Store
 .DS_Store?
