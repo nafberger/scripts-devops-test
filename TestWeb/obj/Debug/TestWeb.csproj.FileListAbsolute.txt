@@ -1,0 +1,2 @@
+C:\Users\naftalyw\source\repos\IntegraScripts\TestProject\TestWeb\obj\Debug\TestWeb.csproj.AssemblyReference.cache
+C:\Users\naftalyw\source\repos\IntegraScripts\TestProject\TestWeb\obj\Debug\TestWeb.csproj.CoreCompileInputs.cache

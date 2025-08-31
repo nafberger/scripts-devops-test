@@ -1,0 +1,166 @@
+# Azure DevOps Pipeline for ASP.NET Web Forms deployment to Azure VM
+# Builds from GitHub repository and deploys to IIS on Azure VM
+# Manual trigger only - no automatic builds
+
+trigger: none
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  deploymentPath: 'C:\inetpub\wwwroot\SimpleWebFormsTest'
+
+stages:
+- stage: Build
+  displayName: 'Build Application'
+  jobs:
+  - job: Build
+    displayName: 'Build ASP.NET Web Forms'
+    steps:
+    
+    # Checkout source code from GitHub
+    - checkout: self
+      displayName: 'Checkout GitHub Repository'
+    
+    # Use .NET Framework MSBuild
+    - task: MSBuild@1
+      displayName: 'Build Solution'
+      inputs:
+        solution: '$(solution)'
+        platform: '$(buildPlatform)'
+        configuration: '$(buildConfiguration)'
+        msbuildArguments: '/p:WebPublishMethod=FileSystem /p:DeployOnBuild=true /p:PublishProfile=FolderProfile /p:PublishUrl=$(Agent.TempDirectory)\publish'
+    
+    # Copy Web application files for deployment
+    - task: CopyFiles@2
+      displayName: 'Copy Web Files'
+      inputs:
+        SourceFolder: 'Web'
+        Contents: |
+          **/*.aspx
+          **/*.aspx.cs
+          **/*.config
+          **/*.css
+          **/*.js
+          **/*.html
+          **/*.htm
+          bin/**
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/WebApp'
+    
+    # Publish build artifacts
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Build Artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/WebApp'
+        ArtifactName: 'WebApp'
+        publishLocation: 'Container'
+
+- stage: Deploy
+  displayName: 'Deploy to Azure VM'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeployToVM
+    displayName: 'Deploy to IIS on Azure VM'
+    environment: 'Production'  # Configure this environment in Azure DevOps
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          
+          # Download build artifacts
+          - download: current
+            artifact: WebApp
+            displayName: 'Download Build Artifacts'
+          
+          # Stop IIS application pool
+          - task: PowerShell@2
+            displayName: 'Stop Application Pool'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module WebAdministration
+                if (Get-IISAppPool -Name "SimpleWebFormsTest" -ErrorAction SilentlyContinue) {
+                  Stop-WebAppPool -Name "SimpleWebFormsTest"
+                  Write-Host "Application pool stopped"
+                } else {
+                  Write-Host "Application pool does not exist, will be created during deployment"
+                }
+              failOnStderr: false
+          
+          # Deploy files to IIS directory
+          - task: CopyFiles@2
+            displayName: 'Deploy to IIS Directory'
+            inputs:
+              SourceFolder: '$(Pipeline.Workspace)/WebApp'
+              Contents: '**'
+              TargetFolder: '$(deploymentPath)'
+              CleanTargetFolder: true
+              OverWrite: true
+          
+          # Configure IIS Application Pool and Site
+          - task: PowerShell@2
+            displayName: 'Configure IIS Application Pool and Site'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module WebAdministration
+                
+                # Create Application Pool if it doesn't exist
+                if (-not (Get-IISAppPool -Name "SimpleWebFormsTest" -ErrorAction SilentlyContinue)) {
+                  New-WebAppPool -Name "SimpleWebFormsTest"
+                  Write-Host "Created application pool: SimpleWebFormsTest"
+                }
+                
+                # Set .NET Framework version
+                Set-ItemProperty -Path "IIS:\AppPools\SimpleWebFormsTest" -Name "managedRuntimeVersion" -Value "v4.0"
+                Set-ItemProperty -Path "IIS:\AppPools\SimpleWebFormsTest" -Name "enable32BitAppOnWin64" -Value $false
+                
+                # Create IIS Site if it doesn't exist
+                if (-not (Get-Website -Name "SimpleWebFormsTest" -ErrorAction SilentlyContinue)) {
+                  New-Website -Name "SimpleWebFormsTest" -Port 8080 -PhysicalPath "$(deploymentPath)" -ApplicationPool "SimpleWebFormsTest"
+                  Write-Host "Created website: SimpleWebFormsTest on port 8080"
+                } else {
+                  Set-ItemProperty -Path "IIS:\Sites\SimpleWebFormsTest" -Name "physicalPath" -Value "$(deploymentPath)"
+                  Write-Host "Updated website path"
+                }
+                
+                # Set permissions on deployment directory
+                $acl = Get-Acl "$(deploymentPath)"
+                $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("IIS_IUSRS","FullControl","ContainerInherit,ObjectInherit","None","Allow")
+                $acl.SetAccessRule($accessRule)
+                Set-Acl "$(deploymentPath)" $acl
+                Write-Host "Set IIS_IUSRS permissions"
+          
+          # Start Application Pool
+          - task: PowerShell@2
+            displayName: 'Start Application Pool'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module WebAdministration
+                Start-WebAppPool -Name "SimpleWebFormsTest"
+                Write-Host "Application pool started"
+          
+          # Health check
+          - task: PowerShell@2
+            displayName: 'Health Check'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Start-Sleep -Seconds 10
+                try {
+                  $response = Invoke-WebRequest -Uri "http://localhost:8080" -UseBasicParsing -TimeoutSec 30
+                  if ($response.StatusCode -eq 200) {
+                    Write-Host "✅ Deployment successful! Application is responding on port 8080"
+                    Write-Host "Response status: $($response.StatusCode)"
+                  } else {
+                    Write-Warning "⚠️ Application responded with status: $($response.StatusCode)"
+                  }
+                } catch {
+                  Write-Error "❌ Health check failed: $($_.Exception.Message)"
+                  exit 1
+                }
