@@ -1,0 +1,55 @@
+name: Deploy to Azure VM
+
+on:
+  workflow_dispatch:
+  
+env:
+  AZURE_WEBAPP_NAME: SimpleWebFormsTest
+  AZURE_WEBAPP_PACKAGE_PATH: './publish'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Setup .NET Framework
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+      
+    - name: Restore packages
+      run: nuget restore TestWeb.sln
+      
+    - name: Build and publish
+      run: msbuild TestWeb.sln /p:Configuration=Release /p:Platform="Any CPU" /p:WebPublishMethod=FileSystem /p:DeployOnBuild=true /p:PublishProfile=FolderProfile /p:PublishUrl=./publish
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: webapp
+        path: ./publish
+        
+  deploy:
+    runs-on: self-hosted
+    needs: build
+    environment: production
+    
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: webapp
+        path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        
+    - name: Deploy to IIS
+      uses: microsoft/iis-deploy@v1
+      with:
+        website-name: ${{ env.AZURE_WEBAPP_NAME }}
+        app-pool-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package-path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        website-physical-path: 'C:\inetpub\wwwroot\SimpleWebFormsTest'
+        app-pool-dotnet-version: 'v4.0'
+        website-port: '8080'
