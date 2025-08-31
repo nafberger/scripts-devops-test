@@ -81,6 +81,20 @@ TestWeb/Scripts/jquery*
 TestWeb/Scripts/modernizr*
 TestWeb/fonts/
 
+# Build artifacts and temporary files
+*.cache
+*.tmp
+*.temp
+*_cache
+publish/
+publish_output/
+
+# Visual Studio temporary files
+*.AssemblyReference.cache
+*.CoreCompileInputs.cache
+*.CopyComplete
+*.FileListAbsolute.txt
+
 # Publish profiles
 TestWeb/Properties/PublishProfiles/
 
