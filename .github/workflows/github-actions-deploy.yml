@@ -25,13 +25,9 @@ jobs:
     - name: Restore NuGet packages
       run: nuget restore TestWeb.sln
       
-    - name: Build solution
+    - name: Build and publish MVC application
       run: |
-        msbuild TestWeb.sln /p:Configuration=Release /p:Platform="Any CPU"
-        
-    - name: Publish web application
-      run: |
-        msbuild TestWeb/TestWeb.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:WebPublishMethod=FileSystem /p:PublishUrl="..\${{ env.WEBAPP_PACKAGE_PATH }}" /p:DeleteExistingFiles=false /t:WebPublish
+        msbuild TestWeb.sln /p:Configuration=Release /p:Platform="Any CPU" /p:DeployOnBuild=true /p:WebPublishMethod=FileSystem /p:PublishUrl="${{ env.WEBAPP_PACKAGE_PATH }}" /p:DeleteExistingFiles=true
       
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
