@@ -1,36 +1,42 @@
-name: Deploy to Azure VM
+name: Deploy ASP.NET MVC to Azure VM
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
   
 env:
-  AZURE_WEBAPP_NAME: SimpleWebFormsTest
-  AZURE_WEBAPP_PACKAGE_PATH: './publish'
+  WEBAPP_NAME: SimpleWebFormsTest
+  WEBAPP_PACKAGE_PATH: './publish'
+  DEPLOYMENT_PATH: 'C:\inetpub\wwwroot\SimpleWebFormsTest'
 
 jobs:
   build:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
       
-    - name: Setup .NET Framework
+    - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
       
     - name: Setup NuGet
       uses: NuGet/setup-nuget@v2
       
-    - name: Restore packages
+    - name: Restore NuGet packages
       run: nuget restore TestWeb.sln
       
-    - name: Build and publish
-      run: msbuild TestWeb.sln /p:Configuration=Release /p:Platform="Any CPU" /p:WebPublishMethod=FileSystem /p:DeployOnBuild=true /p:PublishProfile=FolderProfile /p:PublishUrl=./publish
+    - name: Build and publish MVC application
+      run: |
+        msbuild TestWeb.sln /p:Configuration=Release /p:Platform="Any CPU" /p:DeployOnBuild=true /p:WebPublishMethod=FileSystem /p:PublishUrl="${{ env.WEBAPP_PACKAGE_PATH }}" /p:DeleteExistingFiles=true
       
-    - name: Upload artifact
+    - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
-        name: webapp
-        path: ./publish
+        name: webapp-package
+        path: ${{ env.WEBAPP_PACKAGE_PATH }}
+        retention-days: 30
         
   deploy:
     runs-on: self-hosted
@@ -38,18 +44,18 @@ jobs:
     environment: production
     
     steps:
-    - name: Download artifact
+    - name: Download build artifact
       uses: actions/download-artifact@v4
       with:
-        name: webapp
-        path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        name: webapp-package
+        path: ${{ env.WEBAPP_PACKAGE_PATH }}
         
     - name: Deploy to IIS
       uses: microsoft/iis-deploy@v1
       with:
-        website-name: ${{ env.AZURE_WEBAPP_NAME }}
-        app-pool-name: ${{ env.AZURE_WEBAPP_NAME }}
-        package-path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
-        website-physical-path: 'C:\inetpub\wwwroot\SimpleWebFormsTest'
+        website-name: ${{ env.WEBAPP_NAME }}
+        app-pool-name: ${{ env.WEBAPP_NAME }}
+        package-path: ${{ env.WEBAPP_PACKAGE_PATH }}
+        website-physical-path: ${{ env.DEPLOYMENT_PATH }}
         app-pool-dotnet-version: 'v4.0'
         website-port: '8080'
