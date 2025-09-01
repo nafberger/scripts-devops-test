@@ -14,7 +14,7 @@ on:
 
 jobs:
   call-reusable:
-    uses: your-org/pipelines-repo/.github/workflows/deploy-full.yml@pipelines
+    uses: nafberger/scripts-devops-test/.github/workflows/deploy-full.yml@pipelines
     with:
       environment: ${{ github.event.inputs.environment }}
       branch: ${{ github.event.inputs.branch }}
