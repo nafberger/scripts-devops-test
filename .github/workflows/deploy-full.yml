@@ -59,13 +59,17 @@ jobs:
       
     - name: Build and publish MVC application
       run: |
-        msbuild TestWeb.sln /p:Configuration=Release /p:Platform="Any CPU" /p:DeployOnBuild=true /p:WebPublishMethod=FileSystem /p:PublishUrl="${{ env.WEBAPP_PACKAGE_PATH }}" /p:DeleteExistingFiles=true
+        msbuild TestWeb.sln /p:Configuration=Release /p:Platform="Any CPU" ^
+          /p:DeployOnBuild=true ^
+          /p:WebPublishMethod=FileSystem ^
+          /p:PublishUrl="$(System.DefaultWorkingDirectory)\publish" ^
+          /p:DeleteExistingFiles=true
       
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
         name: webapp-package
-        path: ${{ env.WEBAPP_PACKAGE_PATH }}
+        path: publish
         retention-days: 30
         
   deploy:
