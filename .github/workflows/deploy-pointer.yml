@@ -16,6 +16,10 @@ jobs:
   call-reusable:
     uses: nafberger/scripts-devops-test/.github/workflows/deploy-full.yml@pipelines
     with:
-      environment: ${{ github.event.inputs.environment }}
-      branch: ${{ github.event.inputs.branch }}
+      branch: main
+      webapp_name: SimpleWebFormsTest
+      package_path: ./publish
+      deployment_path: C:\inetpub\wwwroot\SimpleWebFormsTest
+      website_port: '8080'
+      app_pool_dotnet_version: v4.0
     secrets: inherit
