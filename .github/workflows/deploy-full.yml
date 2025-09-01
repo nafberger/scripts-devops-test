@@ -1,12 +1,42 @@
 name: Deploy ASP.NET MVC to Azure VM
 
 on:
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      branch:
+        description: 'Git branch to build/deploy'
+        required: true
+        type: string
+      webapp_name:
+        description: 'IIS site/app pool name'
+        required: false
+        type: string
+        default: 'SimpleWebFormsTest'
+      package_path:
+        description: 'Path to build output folder'
+        required: false
+        type: string
+        default: './publish'
+      deployment_path:
+        description: 'IIS physical path'
+        required: false
+        type: string
+        default: 'C:\inetpub\wwwroot\SimpleWebFormsTest'
+      website_port:
+        description: 'IIS port'
+        required: false
+        type: string
+        default: '8080'
+      app_pool_dotnet_version:
+        description: '.NET version for app pool'
+        required: false
+        type: string
+        default: 'v4.0'
   
 env:
-  WEBAPP_NAME: SimpleWebFormsTest
-  WEBAPP_PACKAGE_PATH: './publish'
-  DEPLOYMENT_PATH: 'C:\inetpub\wwwroot\SimpleWebFormsTest'
+  WEBAPP_NAME: ${{ inputs.webapp_name }}
+  WEBAPP_PACKAGE_PATH: ${{ inputs.package_path }}
+  DEPLOYMENT_PATH: ${{ inputs.deployment_path }}
 
 jobs:
   build:
@@ -15,6 +45,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.branch }}
       
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
