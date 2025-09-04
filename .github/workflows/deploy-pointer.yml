@@ -1,25 +1,49 @@
-name: Deploy Integra (Manual)
-
+name: Create branch from Jira
 on:
-  workflow_dispatch:   # lets you run it manually in the Actions tab
-    inputs:
-      environment:
-        description: 'Where to deploy?'
-        required: true
-        default: 'staging'
-      branch:
-        description: 'Branch of Integra to deploy'
-        required: true
-        default: 'main'
+  repository_dispatch:
+    types: [jira-create-branch]
 
 jobs:
-  call-reusable:
-    uses: nafberger/scripts-devops-test/.github/workflows/deploy-full.yml@pipelines
-    with:
-      branch: main
-      webapp_name: SimpleWebFormsTest
-      package_path: ./publish
-      deployment_path: C:\inetpub\wwwroot\SimpleWebFormsTest
-      website_port: '8080'
-      app_pool_dotnet_version: v4.0
-    secrets: inherit
+  create:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Compute branch name
+        id: vars
+        run: |
+          # Inputs come from the webhook payload
+          ISSUE_KEY="${{ github.event.client_payload.issue_key }}"
+          RAW_SUMMARY="${{ github.event.client_payload.summary }}"
+          # slugify summary a bit
+          SLUG=$(echo "$RAW_SUMMARY" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g;s/^-+|-+$//g' | cut -c1-40)
+          echo "branch=feature/${ISSUE_KEY}-${SLUG}" >> $GITHUB_OUTPUT
+
+      - name: Get default branch
+        id: def
+        run: |
+          # Read default branch from repo metadata
+          def=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                 https://api.github.com/repos/${{ github.repository }} | jq -r .default_branch)
+          echo "name=$def" >> $GITHUB_OUTPUT
+
+      - name: Get HEAD SHA of default branch
+        id: sha
+        run: |
+          sha=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                 https://api.github.com/repos/${{ github.repository }}/git/ref/heads/${{ steps.def.outputs.name }} \
+                 | jq -r .object.sha)
+          echo "sha=$sha" >> $GITHUB_OUTPUT
+
+      - name: Create ref (branch)
+        run: |
+          curl -s -X POST \
+           -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+           -H "Accept: application/vnd.github+json" \
+           https://api.github.com/repos/${{ github.repository }}/git/refs \
+           -d @- <<EOF
+          {
+            "ref": "refs/heads/${{ steps.vars.outputs.branch }}",
+            "sha": "${{ steps.sha.outputs.sha }}"
+          }
+          EOF
